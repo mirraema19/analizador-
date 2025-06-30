@@ -1,0 +1,229 @@
+/* --- Paleta de Colores (Nordic Night) --- */
+:root {
+  --bg-color: #1a1b26;
+  --card-bg: #24283b;
+  --text-color: #c0caf5;
+  --text-secondary: #a9b1d6;
+  --accent-color: #73daca; /* Teal */
+  --accent-text: #1a1b26; /* Texto oscuro para el botón */
+  --error-color: #f7768e; /* Rojo/Rosa brillante */
+  --border-color: #414868;
+  --header-border: linear-gradient(90deg, #73daca, #bb9af7); /* Gradiente */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Fira Code', 'Consolas', 'Courier New', monospace;
+}
+
+/* --- Reseteo y Estilos Base --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+
+/* --- Estructura Principal --- */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  padding: 1.5rem 2rem;
+  background-color: var(--card-bg);
+  border-bottom: 3px solid;
+  border-image-slice: 1;
+  border-image-source: var(--header-border);
+}
+
+.app-header h1 {
+  color: var(--text-color);
+  font-size: 1.75rem;
+}
+
+/* --- NUEVA DISPOSICIÓN --- */
+.app-main {
+  flex-grow: 1;
+  display: flex; /* Cambiado a flex */
+  flex-direction: column; /* Apilado verticalmente */
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.editor-panel {
+  flex-shrink: 0; /* Evita que el panel del editor se encoja */
+}
+
+.output-panels {
+  flex-grow: 1; /* Ocupa el espacio restante */
+  display: grid;
+  grid-template-columns: 3fr 2fr; /* Columna de tabla más ancha que la de errores */
+  gap: 2rem;
+  min-height: 0; /* Solución para overflow en flexbox/grid */
+}
+
+/* Asegura que los paneles hijos puedan crecer */
+.results-panel, .errors-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Componente Card (Contenedor reutilizable) --- */
+.card {
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: border-color 0.3s;
+}
+
+.card:hover {
+  border-color: var(--accent-color);
+}
+
+.card h2 {
+  color: var(--text-color);
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+  font-size: 1.25rem;
+}
+
+/* --- Editor de Código --- */
+textarea {
+  flex-grow: 1;
+  min-height: 250px; /* Altura mínima ajustada */
+  background-color: #1e202e;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+textarea:focus {
+  outline: 2px solid var(--accent-color);
+  border-color: transparent;
+}
+
+button {
+  margin-top: 1.5rem;
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background-color: var(--accent-color);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+}
+
+button:hover:not(:disabled) {
+  background-color: #8cece1;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+button:disabled {
+  background-color: #545c7e;
+  color: #a9b1d6;
+  cursor: not-allowed;
+}
+
+.api-error {
+  color: var(--error-color);
+  margin-top: 1rem;
+  font-weight: bold;
+}
+
+/* --- Tabla de Resultados --- */
+.results-panel .card {
+  flex-grow: 1; /* El card debe crecer para llenar el espacio */
+}
+
+.table-wrapper {
+  overflow-y: auto; /* Scroll vertical */
+  flex-grow: 1; /* Permite que el wrapper crezca y el scroll funcione */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid var(--border-color);
+  padding: 0.75rem;
+  text-align: center;
+}
+
+th {
+  background-color: #2f354e;
+  color: var(--text-color);
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #2a2f42;
+}
+tbody tr:nth-child(odd) {
+  background-color: var(--card-bg);
+}
+
+.token-lexeme {
+  font-family: var(--font-mono);
+  text-align: left;
+  color: #e0af68; /* Un color ámbar para los lexemas */
+}
+
+.total-row {
+  background-color: var(--accent-color) !important;
+  color: var(--accent-text);
+  font-weight: bold;
+}
+
+/* --- Contenedor de Errores --- */
+.errors-card {
+  border-left: 5px solid var(--error-color);
+}
+
+.errors-card h2 {
+  color: var(--error-color);
+}
+
+.error-section h3 {
+  color: var(--text-color);
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.error-section ul {
+  list-style-type: '× ';
+  list-style-position: inside;
+  padding-left: 0;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.error-section li {
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
