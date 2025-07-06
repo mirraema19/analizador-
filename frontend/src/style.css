@@ -1,229 +1,221 @@
-/* --- Paleta de Colores (Nordic Night) --- */
-:root {
-  --bg-color: #1a1b26;
-  --card-bg: #24283b;
-  --text-color: #c0caf5;
-  --text-secondary: #a9b1d6;
-  --accent-color: #73daca; /* Teal */
-  --accent-text: #1a1b26; /* Texto oscuro para el botón */
-  --error-color: #f7768e; /* Rojo/Rosa brillante */
-  --border-color: #414868;
-  --header-border: linear-gradient(90deg, #73daca, #bb9af7); /* Gradiente */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: 'Fira Code', 'Consolas', 'Courier New', monospace;
-}
+/* src/App.css */
 
-/* --- Reseteo y Estilos Base --- */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
+/* Estilos generales y de fuente */
 body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: var(--font-sans);
-  font-size: 16px;
-}
-
-/* --- Estructura Principal --- */
-.app-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f0f2f5;
+  color: #333;
+  margin: 0;
+  padding: 20px;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
   min-height: 100vh;
 }
 
-.app-header {
-  padding: 1.5rem 2rem;
-  background-color: var(--card-bg);
-  border-bottom: 3px solid;
-  border-image-slice: 1;
-  border-image-source: var(--header-border);
-}
-
-.app-header h1 {
-  color: var(--text-color);
-  font-size: 1.75rem;
-}
-
-/* --- NUEVA DISPOSICIÓN --- */
-.app-main {
-  flex-grow: 1;
-  display: flex; /* Cambiado a flex */
-  flex-direction: column; /* Apilado verticalmente */
-  gap: 2rem;
+.app-container {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 700px;
+  width: 100%;
   padding: 2rem;
+  transition: all 0.3s ease;
 }
 
-.editor-panel {
-  flex-shrink: 0; /* Evita que el panel del editor se encoja */
-}
-
-.output-panels {
-  flex-grow: 1; /* Ocupa el espacio restante */
-  display: grid;
-  grid-template-columns: 3fr 2fr; /* Columna de tabla más ancha que la de errores */
-  gap: 2rem;
-  min-height: 0; /* Solución para overflow en flexbox/grid */
-}
-
-/* Asegura que los paneles hijos puedan crecer */
-.results-panel, .errors-panel {
-  display: flex;
-  flex-direction: column;
-}
-
-/* --- Componente Card (Contenedor reutilizable) --- */
-.card {
-  background-color: var(--card-bg);
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  transition: border-color 0.3s;
-}
-
-.card:hover {
-  border-color: var(--accent-color);
-}
-
-.card h2 {
-  color: var(--text-color);
+header {
+  text-align: center;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 1rem;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.75rem;
-  font-size: 1.25rem;
 }
 
-/* --- Editor de Código --- */
+header h1 {
+  color: #1a1a1a;
+  margin: 0;
+}
+
+header p {
+  color: #666;
+  font-size: 1rem;
+}
+
+/* Formulario de entrada */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 textarea {
-  flex-grow: 1;
-  min-height: 250px; /* Altura mínima ajustada */
-  background-color: #1e202e;
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 1rem;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
   resize: vertical;
-  line-height: 1.6;
+  min-height: 60px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 textarea:focus {
-  outline: 2px solid var(--accent-color);
-  border-color: transparent;
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
 }
 
 button {
-  margin-top: 1.5rem;
-  padding: 0.8rem 1.5rem;
-  font-size: 1.1rem;
-  font-weight: bold;
-  background-color: var(--accent-color);
-  color: var(--accent-text);
+  background-color: #007bff;
+  color: white;
   border: none;
-  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+  transition: background-color 0.2s, transform 0.1s;
 }
 
-button:hover:not(:disabled) {
-  background-color: #8cece1;
+button:hover {
+  background-color: #0056b3;
 }
 
-button:active:not(:disabled) {
-  transform: translateY(2px);
+button:active {
+  transform: scale(0.98);
 }
 
 button:disabled {
-  background-color: #545c7e;
-  color: #a9b1d6;
+  background-color: #a0c3e6;
   cursor: not-allowed;
 }
 
-.api-error {
-  color: var(--error-color);
+/* Caja de resultados */
+.result-box {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border-left-width: 5px;
+  border-left-style: solid;
+  border-radius: 6px;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.result-box h3 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.result-box .result-message {
+  margin-bottom: 1.5rem;
+}
+
+/* Colores de estado */
+.result-box.correcto {
+  border-color: #28a745;
+  background-color: #e9f7ef;
+}
+.result-box.correcto h3 { color: #155724; }
+
+.result-box.advertencia {
+  border-color: #ffc107;
+  background-color: #fff8e1;
+}
+.result-box.advertencia h3 { color: #856404; }
+
+.result-box.error {
+  border-color: #dc3545;
+  background-color: #f8d7da;
+}
+.result-box.error h3 { color: #721c24; }
+
+.network-error {
   margin-top: 1rem;
-  font-weight: bold;
-}
-
-/* --- Tabla de Resultados --- */
-.results-panel .card {
-  flex-grow: 1; /* El card debe crecer para llenar el espacio */
-}
-
-.table-wrapper {
-  overflow-y: auto; /* Scroll vertical */
-  flex-grow: 1; /* Permite que el wrapper crezca y el scroll funcione */
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th, td {
-  border: 1px solid var(--border-color);
-  padding: 0.75rem;
+  padding: 1rem;
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
   text-align: center;
 }
 
-th {
-  background-color: #2f354e;
-  color: var(--text-color);
-  font-weight: bold;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-tbody tr:nth-child(even) {
-  background-color: #2a2f42;
-}
-tbody tr:nth-child(odd) {
-  background-color: var(--card-bg);
-}
-
-.token-lexeme {
-  font-family: var(--font-mono);
-  text-align: left;
-  color: #e0af68; /* Un color ámbar para los lexemas */
-}
-
-.total-row {
-  background-color: var(--accent-color) !important;
-  color: var(--accent-text);
-  font-weight: bold;
-}
-
-/* --- Contenedor de Errores --- */
-.errors-card {
-  border-left: 5px solid var(--error-color);
-}
-
-.errors-card h2 {
-  color: var(--error-color);
-}
-
-.error-section h3 {
-  color: var(--text-color);
-  margin-top: 1rem;
+/* Vista de tokens */
+.token-view h4 {
+  margin-top: 0;
   margin-bottom: 0.5rem;
+  color: #444;
 }
 
-.error-section ul {
-  list-style-type: '× ';
-  list-style-position: inside;
-  padding-left: 0;
-  font-family: var(--font-mono);
+.tokenized-command {
+  background-color: #2d2d2d;
+  color: #f8f8f2;
+  padding: 1rem;
+  border-radius: 6px;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.token {
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Colores de tokens para resaltar la sintaxis */
+.token-command {
+  color: #ff79c6; /* Rosa */
+  font-weight: bold;
+}
+.token-flag {
+  color: #8be9fd; /* Cian */
+}
+.token-param {
+  color: #f1fa8c; /* Amarillo */
+}
+.token-unknown {
+  color: #ff5555; /* Rojo */
+  text-decoration: underline;
+}
+
+footer {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
   font-size: 0.9rem;
+  color: #888;
 }
 
-.error-section li {
-  margin-bottom: 0.5rem;
-  color: var(--text-secondary);
+
+/* src/App.css */
+
+/* ... (todos los estilos anteriores permanecen iguales) ... */
+
+/* ESTILOS AÑADIDOS AL FINAL DEL ARCHIVO */
+
+/* Etiqueta para el tipo de error (Léxico, Sintáctico, Semántico) */
+.error-type-badge {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 12px;
+  color: white;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Color de la etiqueta basado en el contenedor padre */
+.result-box.error .error-type-badge {
+  background-color: #a52834; /* Un rojo más oscuro para contraste */
+}
+
+.result-box.advertencia .error-type-badge {
+  background-color: #b8860b; /* Un amarillo/ocre más oscuro */
 }

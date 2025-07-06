@@ -1,3 +1,4 @@
+// main.go
 package main
 
 import (
@@ -5,233 +6,171 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"strings"
+	"unicode"
 )
 
-// TokenType define el tipo de un token (PR, ID, etc.)
-type TokenType string
+// --- 1. Definición de Tipos y Estructuras (Sin cambios) ---
+type TokenType int
+const (TOKEN_UNKNOWN TokenType = iota; TOKEN_COMMAND; TOKEN_FLAG; TOKEN_PARAM)
+func (t TokenType) String() string { return [...]string{"UNKNOWN", "COMMAND", "FLAG", "PARAM"}[t] }
+type Token struct {Type  TokenType `json:"type"`; Value string `json:"value"`}
+type AnalysisRequest struct {Command string `json:"command"`}
+type AnalysisResult struct {Status string `json:"status"`; ErrorType string `json:"errorType,omitempty"`; Message string `json:"message"`; Tokens []Token `json:"tokens"`}
 
-const (
-	PR         TokenType = "PR"         // Palabra Reservada
-	ID         TokenType = "ID"         // Identificador
-	NUMERO     TokenType = "Numeros"    // Número
-	SIMBOLO    TokenType = "Simbolos"   // Símbolo
-	CADENA     TokenType = "Cadenas"    // Cadena de texto
-	ERROR      TokenType = "Error"      // Token no reconocido
-	COMENTARIO TokenType = "Comentario" // Comentario
-)
 
-// Token representa una unidad léxica
-type Token struct {
-	Type   TokenType `json:"type"`
-	Lexeme string    `json:"lexeme"`
-	Line   int       `json:"line"`
-}
-
-// AnalysisResult es la estructura que se enviará al frontend
-type AnalysisResult struct {
-	Tokens         []Token           `json:"tokens"`
-	Counts         map[TokenType]int `json:"counts"`
-	LexicalErrors  []string          `json:"lexicalErrors"`
-	SyntaxErrors   []string          `json:"syntaxErrors"`
-	SemanticErrors []string          `json:"semanticErrors"`
-}
-
-// Palabras reservadas de Java que consideraremos
-var keywords = map[string]bool{
-	"public": true, "class": true, "static": true, "void": true, "main": true,
-	"String": true, "int": true, "if": true, "else": true, "true": true, "false": true, // <-- CORRECCIÓN AQUÍ
-	"System": true, "out": true, "println": true, "equals": true,
-}
-
-// --- Analizador Léxico (Tokenizer) ---
-func Lexer(code string) []Token {
+// --- 2. Analizador Léxico (Lexer) (Sin cambios) ---
+func Lexer(input string) ([]Token, error) {
 	var tokens []Token
-	lines := strings.Split(code, "\n")
-
-	// Regex mejorada para capturar corchetes individuales y operadores dobles
-	re := regexp.MustCompile(`(//.*)|(\"[^\"]*\")|([a-zA-Z_][a-zA-Z0-9_]*)|([0-9]+)|(\[|\]|;|\(|\)|\{|\}|=|<|>|\.|\!)|(\S+)`)
-
-	for i, line := range lines {
-		matches := re.FindAllStringSubmatch(line, -1)
-		for _, match := range matches {
-			lexeme := ""
-			for j := 1; j < len(match); j++ {
-				if match[j] != "" {
-					lexeme = match[j]
-					break
-				}
-			}
-
-			if lexeme == "" {
-				continue
-			}
-
-			token := Token{Lexeme: lexeme, Line: i + 1}
-
-			if strings.HasPrefix(lexeme, "//") {
-				token.Type = COMENTARIO
-			} else if strings.HasPrefix(lexeme, "\"") {
-				token.Type = CADENA
-			} else if _, isKeyword := keywords[lexeme]; isKeyword {
-				token.Type = PR
-			} else if ok, _ := regexp.MatchString(`^[0-9]+$`, lexeme); ok {
-				token.Type = NUMERO
-			} else if ok, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*$`, lexeme); ok {
-				token.Type = ID
-			} else if ok, _ := regexp.MatchString(`^(\[|\]|;|\(|\)|\{|\}|=|<|>|\.|\!)$`, lexeme); ok {
-				token.Type = SIMBOLO
-			} else {
-				token.Type = ERROR
-			}
-			tokens = append(tokens, token)
-		}
+	trimmedInput := strings.TrimSpace(input)
+	if trimmedInput == "" {return nil, fmt.Errorf("El comando está vacío.")}
+	parts := splitCommand(trimmedInput)
+	if len(parts) == 0 || parts[0] != "git" {
+		errorToken := Token{Type: TOKEN_UNKNOWN, Value: parts[0]}
+		return []Token{errorToken}, fmt.Errorf("Error Léxico: Se esperaba el comando 'git', pero se encontró '%s'.", parts[0])
 	}
-	return tokens
+	knownCommands := map[string]bool{"init": true, "config": true, "clone": true, "status": true, "add": true, "reset": true, "commit": true, "branch": true, "checkout": true, "merge": true, "push": true}
+	for i, part := range parts {
+		var tokenType TokenType
+		if i == 0 {tokenType = TOKEN_COMMAND
+		} else if i == 1 && knownCommands[part] {tokenType = TOKEN_COMMAND
+		} else if strings.HasPrefix(part, "-") {tokenType = TOKEN_FLAG
+		} else {tokenType = TOKEN_PARAM}
+		tokens = append(tokens, Token{Type: tokenType, Value: part})
+	}
+	return tokens, nil
+}
+func splitCommand(input string) []string {
+	var result []string; var current strings.Builder; inQuote := false
+	for _, r := range input {
+		if r == '"' { inQuote = !inQuote }
+		if unicode.IsSpace(r) && !inQuote {if current.Len() > 0 { result = append(result, current.String()); current.Reset() }
+		} else { current.WriteRune(r) }
+	}
+	if current.Len() > 0 { result = append(result, current.String()) }
+	for i, part := range result {
+		if strings.HasPrefix(part, "\"") && strings.HasSuffix(part, "\"") {result[i] = strings.Trim(part, "\"")}
+	}
+	return result
 }
 
-// --- Analizadores Sintáctico y Semántico (Simplificados) ---
-func Analyze(tokens []Token) ([]string, []string) {
-	var syntaxErrors []string
-	var semanticErrors []string
 
-	symbolTable := make(map[string]string)
-	symbolTable["System"] = "Class"
+// --- 3. Analizador Sintáctico y Semántico (CON LAS NUEVAS REGLAS) ---
+func ParseAndAnalyze(tokens []Token) AnalysisResult {
+	if len(tokens) < 2 {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Comando 'git' incompleto.", Tokens: tokens}}
+	command := tokens[1].Value
 	
-	// Pre-declarar 'args' ya no es necesario con la lógica mejorada, pero no hace daño
-	// symbolTable["args"] = "String[]" 
+	switch command {
+	// ... (casos de init, clone, status se mantienen igual)
+	case "init": if len(tokens) > 2 {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: `git init` no admite parámetros adicionales.", Tokens: tokens}}; return AnalysisResult{Status: "Correcto", Message: "Comando `git init` válido.", Tokens: tokens}
+	case "clone": if len(tokens) != 3 || tokens[2].Type != TOKEN_PARAM {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: `git clone` requiere exactamente una URL de repositorio.", Tokens: tokens}}; url := tokens[2].Value; if !strings.HasPrefix(url, "http") && !strings.HasPrefix(url, "git@") {return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: El parámetro no parece una URL válida.", Tokens: tokens}}; return AnalysisResult{Status: "Correcto", Message: "Comando `git clone` válido.", Tokens: tokens}
+	case "status": if len(tokens) > 2 {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: `git status` no admite parámetros.", Tokens: tokens}}; return AnalysisResult{Status: "Correcto", Message: "Comando `git status` válido.", Tokens: tokens}
 
-	parenBalance := 0
-	braceBalance := 0
-	for _, t := range tokens {
-		if t.Lexeme == "(" { parenBalance++ }
-		if t.Lexeme == ")" { parenBalance-- }
-		if t.Lexeme == "{" { braceBalance++ }
-		if t.Lexeme == "}" { braceBalance-- }
-	}
-	if parenBalance != 0 {
-		syntaxErrors = append(syntaxErrors, "Error de sintaxis: Paréntesis desbalanceados.")
-	}
-	if braceBalance != 0 {
-		syntaxErrors = append(syntaxErrors, "Error de sintaxis: Llaves desbalanceadas.")
-	}
+	case "config":
+		if len(tokens) == 3 && tokens[2].Value == "--list" {return AnalysisResult{Status: "Correcto", Message: "Comando `git config --list` válido.", Tokens: tokens}}
+		if len(tokens) == 4 && tokens[2].Value == "--global" && (tokens[3].Value == "user.name" || tokens[3].Value == "user.email") {
+			return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Falta el valor para la configuración.", Tokens: tokens}
+		}
+		if len(tokens) == 5 && tokens[2].Value == "--global" && (tokens[3].Value == "user.name" || tokens[3].Value == "user.email") && tokens[4].Type == TOKEN_PARAM {
+			if tokens[4].Value == "" {return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: El valor para la configuración no debe estar vacío.", Tokens: tokens}}
+			return AnalysisResult{Status: "Correcto", Message: "Comando `git config` válido.", Tokens: tokens}
+		}
+		return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Uso incorrecto de `git config`.", Tokens: tokens}
+
+	case "add":
+		if len(tokens) < 3 {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Falta el archivo a añadir.", Tokens: tokens}}
+		if tokens[2].Type != TOKEN_PARAM {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: `git add` requiere un parámetro (ej: '.', 'archivo.txt').", Tokens: tokens}}
+		if tokens[2].Value == "." {return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: `git add .` puede incluir archivos no deseados. Se recomienda revisar con `git status` primero.", Tokens: tokens}}
+		return AnalysisResult{Status: "Correcto", Message: "Comando `git add` válido.", Tokens: tokens}
+
+	case "reset":
+		if len(tokens) == 3 {
+			if tokens[2].Type == TOKEN_PARAM {return AnalysisResult{Status: "Correcto", Message: "Comando `git reset <archivo>` válido para quitarlo del staging.", Tokens: tokens}}
+			if tokens[2].Value == "--hard" {return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: `git reset --hard` borra los cambios locales sin recuperación. Es una operación muy destructiva.", Tokens: tokens}}
+		}
+		if len(tokens) == 4 && tokens[2].Value == "--soft" && tokens[3].Type == TOKEN_PARAM {return AnalysisResult{Status: "Correcto", Message: "Comando `git reset --soft` válido.", Tokens: tokens}}
+		return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Uso no reconocido de `git reset`.", Tokens: tokens}
+
+	case "commit":
+		// El caso de `git commit "sin -m"` se detecta aquí
+		if len(tokens) == 3 && tokens[2].Type == TOKEN_PARAM {
+			return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Falta el flag -m.", Tokens: tokens}
+		}
+		if len(tokens) == 3 && tokens[2].Value == "--amend" {return AnalysisResult{Status: "Correcto", Message: "Comando `git commit --amend` válido.", Tokens: tokens}}
+		if len(tokens) == 4 && (tokens[2].Value == "-m" || tokens[2].Value == "-am") && tokens[3].Type == TOKEN_PARAM {
+			if tokens[3].Value == "" {return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: Realizar un commit sin un mensaje descriptivo es una mala práctica.", Tokens: tokens}}
+			return AnalysisResult{Status: "Correcto", Message: "Comando `git commit` válido.", Tokens: tokens}
+		}
+		return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Uso incorrecto de `git commit`.", Tokens: tokens}
 	
-	// Verificar punto y coma (lógica simplificada para evitar falsos positivos)
-	for i := 0; i < len(tokens)-1; i++ {
-		// Regla: si un statement termina en un ID, número o ')' y el siguiente token no es ';', '{', '}', ')'
-		// es un posible error.
-		t := tokens[i]
-		if t.Type == ID || t.Type == NUMERO || t.Lexeme == ")" {
-			if i+1 < len(tokens) {
-				next := tokens[i+1]
-				// Si estamos en la misma línea y el siguiente no es un delimitador esperado
-				if t.Line == next.Line && !strings.ContainsAny(next.Lexeme, ";){") {
-					// Y tampoco es el inicio de una declaración como "int x"
-					if !(next.Type == ID && (t.Lexeme == "int" || t.Lexeme == "String")) {
-						// syntaxErrors = append(syntaxErrors, fmt.Sprintf("Error de sintaxis en línea %d: Posible falta de un ';' después de '%s'.", t.Line, t.Lexeme))
-					}
-				}
+	case "push":
+		// Error sintáctico: git push origin (falta la rama)
+		if len(tokens) == 3 && tokens[2].Type == TOKEN_PARAM {
+			return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Falta la rama a subir (ej: git push origin main).", Tokens: tokens}
+		}
+		// Formas sintácticamente válidas
+		isSyntacticallyCorrect := (len(tokens) == 2) || (len(tokens) == 4 && tokens[2].Type == TOKEN_PARAM && tokens[3].Type == TOKEN_PARAM) || (len(tokens) == 3 && tokens[2].Type == TOKEN_FLAG) || (len(tokens) == 5 && tokens[3].Type == TOKEN_FLAG)
+		if !isSyntacticallyCorrect {
+			return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Estructura de `git push` no reconocida.", Tokens: tokens}
+		}
+		// Si es sintácticamente correcto, buscar advertencias semánticas
+		for _, t := range tokens {
+			if t.Value == "--force" {
+				return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: Forzar el push puede sobrescribir cambios remotos. Úsalo con extrema precaución.", Tokens: tokens}
 			}
 		}
-	}
-	
-	for i, token := range tokens {
-		// Detectar declaración de variable (ej: "int edad" o "String[] args")
-		if token.Lexeme == "int" || token.Lexeme == "String" {
-			j := i + 1
-			// Saltamos los corchetes si es un array (ej: String[] args)
-			if j < len(tokens) && tokens[j].Lexeme == "[" {
-				j++ // salta '['
-				if j < len(tokens) && tokens[j].Lexeme == "]" {
-					j++ // salta ']'
-				}
-			}
+		return AnalysisResult{Status: "Correcto", Message: "Comando `git push` válido.", Tokens: tokens}
 
-			if j < len(tokens) && tokens[j].Type == ID {
-				varName := tokens[j].Lexeme
-				if _, exists := symbolTable[varName]; exists {
-					semanticErrors = append(semanticErrors, fmt.Sprintf("Error semántico en línea %d: La variable '%s' ya ha sido declarada.", tokens[j].Line, varName))
-				} else {
-					symbolTable[varName] = token.Lexeme
-					fmt.Printf("Declarada variable '%s' de tipo '%s'\n", varName, token.Lexeme)
-				}
+	case "branch":
+		if len(tokens) == 2 {return AnalysisResult{Status: "Correcto", Message: "Comando `git branch` (listar) válido.", Tokens: tokens}}
+		if len(tokens) == 3 && tokens[2].Type == TOKEN_PARAM {return AnalysisResult{Status: "Correcto", Message: "Comando `git branch <nombre-rama>` (crear) válido.", Tokens: tokens}}
+		if len(tokens) == 4 && tokens[2].Value == "-d" && tokens[3].Type == TOKEN_PARAM {
+			if tokens[3].Value == "main" || tokens[3].Value == "master" {
+				return AnalysisResult{Status: "Advertencia", ErrorType: "Semántico", Message: "Advertencia Semántica: Borrar la rama principal puede afectar el proyecto.", Tokens: tokens}
 			}
+			return AnalysisResult{Status: "Correcto", Message: "Comando `git branch -d` (eliminar) válido.", Tokens: tokens}
 		}
+		return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Uso incorrecto de `git branch`.", Tokens: tokens}
 
-		if token.Type == ID {
-			// Ignorar si es un nombre de clase, miembro o parte de una declaración
-			isDeclaration := i > 0 && (tokens[i-1].Lexeme == "int" || tokens[i-1].Lexeme == "String" || tokens[i-1].Lexeme == "class")
-			// Corrección para `String[] args`: ignorar `args` si viene después de `[]`
-			isPostArrayDeclaration := i > 2 && tokens[i-2].Lexeme == "String" && tokens[i-1].Lexeme == "]"
-			isMemberAccess := i > 0 && tokens[i-1].Lexeme == "."
-			
-			if isDeclaration || isPostArrayDeclaration || isMemberAccess {
-				continue
-			}
-			
-			if _, exists := symbolTable[token.Lexeme]; !exists {
-				if !keywords[token.Lexeme] {
-					semanticErrors = append(semanticErrors, fmt.Sprintf("Error semántico en línea %d: La variable o identificador '%s' no ha sido declarado.", token.Line, token.Lexeme))
-				}
-			}
+	case "checkout":
+		if len(tokens) == 2 {
+			return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Falta la rama a la que se quiere cambiar.", Tokens: tokens}
 		}
-	}
+		if len(tokens) == 3 && tokens[2].Type == TOKEN_PARAM {return AnalysisResult{Status: "Correcto", Message: "Comando `git checkout <rama>` (cambiar) válido.", Tokens: tokens}}
+		if len(tokens) == 4 && tokens[2].Value == "-b" && tokens[3].Type == TOKEN_PARAM {return AnalysisResult{Status: "Correcto", Message: "Comando `git checkout -b` (crear y cambiar) válido.", Tokens: tokens}}
+		return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: Uso incorrecto de `git checkout`.", Tokens: tokens}
 
-	return syntaxErrors, semanticErrors
+	case "merge":
+		if len(tokens) != 3 || tokens[2].Type != TOKEN_PARAM {return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: "Error de Sintaxis: `git merge` requiere el nombre de una rama para unir.", Tokens: tokens}}
+		return AnalysisResult{Status: "Correcto", Message: "Comando `git merge` válido.", Tokens: tokens}
+		
+	default:
+		return AnalysisResult{Status: "Error", ErrorType: "Sintáctico", Message: fmt.Sprintf("Error de Sintaxis: Comando 'git %s' no es reconocido por este analizador.", command), Tokens: tokens}
+	}
 }
 
-// --- Servidor HTTP ---
+
+// --- 4. Servidor HTTP y Manejadores (Sin cambios) ---
 func analyzeHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
+	if r.Method != http.MethodPost {http.Error(w, "Método no permitido", http.StatusMethodNotAllowed); return}
+	var req AnalysisRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {http.Error(w, "Cuerpo de la petición inválido", http.StatusBadRequest); return}
+	tokens, err := Lexer(req.Command)
+	if err != nil {
+		result := AnalysisResult{Status: "Error", ErrorType: "Léxico", Message: err.Error(), Tokens: tokens}
+		w.Header().Set("Content-Type", "application/json"); json.NewEncoder(w).Encode(result); return
 	}
-
-	var requestBody struct {
-		Code string `json:"code"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	tokens := Lexer(requestBody.Code)
-	syntaxErrors, semanticErrors := Analyze(tokens)
-
-	var lexicalErrors []string
-	displayTokens := []Token{}
-	counts := make(map[TokenType]int)
-
-	for _, t := range tokens {
-		if t.Type == ERROR {
-			lexicalErrors = append(lexicalErrors, fmt.Sprintf("Error léxico en línea %d: Símbolo no reconocido '%s'.", t.Line, t.Lexeme))
-		}
-		if t.Type != COMENTARIO && t.Type != ERROR {
-			counts[t.Type]++
-			displayTokens = append(displayTokens, t)
-		}
-	}
-
-	result := AnalysisResult{
-		Tokens:         displayTokens,
-		Counts:         counts,
-		LexicalErrors:  lexicalErrors,
-		SyntaxErrors:   syntaxErrors,
-		SemanticErrors: semanticErrors,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	result := ParseAndAnalyze(tokens)
+	w.Header().Set("Content-Type", "application/json"); json.NewEncoder(w).Encode(result)
 }
-
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*"); w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS"); w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == "OPTIONS" {w.WriteHeader(http.StatusOK); return}; next.ServeHTTP(w, r)
+	})
+}
 func main() {
-	http.HandleFunc("/analyze", analyzeHandler)
-	fmt.Println("Servidor Go escuchando en http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	mux := http.NewServeMux(); finalHandler := http.HandlerFunc(analyzeHandler); mux.Handle("/analyze", corsMiddleware(finalHandler)); port := "8080"
+	log.Printf("Servidor Go con reglas avanzadas escuchando en el puerto %s", port); log.Println("Endpoint disponible en: POST http://localhost:8080/analyze")
+	if err := http.ListenAndServe(":"+port, mux); err != nil {log.Fatalf("No se pudo iniciar el servidor: %s\n", err)}
 }
